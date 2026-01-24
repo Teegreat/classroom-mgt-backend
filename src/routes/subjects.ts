@@ -9,10 +9,26 @@ const router = express.Router();
 // get all subjects with optional search, filtering, pagination, etc.
 router.get("/", async (req, res) => {
   try {
-    const { search, department, page = 1, limit = 10 } = req.query;
+    const { search, department, page, limit } = req.query;
 
-    const currentPage = Math.max(1, +page);
-    const limitPerPage = Math.max(1, +limit);
+    const pageParam = Array.isArray(page) ? page[0] : page;
+    const limitParam = Array.isArray(limit) ? limit[0] : limit;
+
+    const parsedPage = Number.parseInt(
+      typeof pageParam === "string" ? pageParam : "1",
+      10,
+    );
+    const parsedLimit = Number.parseInt(
+      typeof limitParam === "string" ? limitParam : "10",
+      10,
+    );
+
+    if (!Number.isFinite(parsedPage) || !Number.isFinite(parsedLimit)) {
+      return res.status(400).json({ error: "Invalid pagination parameters" });
+    }
+
+    const currentPage = Math.max(1, parsedPage);
+    const limitPerPage = Math.max(1, parsedLimit);
 
     const offset = (currentPage - 1) * limitPerPage;
 
@@ -30,7 +46,8 @@ router.get("/", async (req, res) => {
 
     // if department filter is provided, filter by department name
     if (department) {
-      filterConditions.push(ilike(departments.name, `%${department}%`));
+      const deptPattern = `%${String(department).replace(/[%_]/g, "\\$&")}%`;
+      filterConditions.push(ilike(departments.name, deptPattern));
     }
 
     // combine all filter conditions using AND
@@ -45,7 +62,7 @@ router.get("/", async (req, res) => {
       .leftJoin(departments, eq(subjects.departmentId, departments.id))
       .where(whereClause);
 
-    const toitalCount = countResult[0]?.count ?? 0;
+    const totalCount = Number(countResult[0]?.count ?? 0);
 
     const subjectsList = await db
       .select({
@@ -64,8 +81,8 @@ router.get("/", async (req, res) => {
       pagination: {
         page: currentPage,
         limit: limitPerPage,
-        total: toitalCount,
-        totalPages: Math.ceil(toitalCount / limitPerPage),
+        total: totalCount,
+        totalPages: Math.ceil(totalCount / limitPerPage),
       },
     });
   } catch (error) {

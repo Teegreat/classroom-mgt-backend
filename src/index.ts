@@ -7,6 +7,11 @@ import cors from "cors";
 const app = express();
 const PORT = 8000;
 
+const frontendUrl = process.env.FRONTEND_URL;
+if (!frontendUrl) {
+  throw new Error("FRONTEND_URL is required");
+}
+
 app.use(cors({
   origin: process.env.FRONTEND_URL,
   methods: ["GET", "POST", "PUT", "DELETE"],
